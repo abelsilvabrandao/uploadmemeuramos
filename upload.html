@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+  <head>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap"
+      rel="stylesheet"
+    />
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Upload Imagem - Memeu Ramos</title>
+    <link rel="stylesheet" href="style.css" />
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  </head>
+  <body>
+    <div id="container">
+      <h1>Upload de Imagem</h1>
+      <input type="file" id="flyerInput" accept="image/*" />
+      <input type="text" id="titleInput" placeholder="Título da Postagem" />
+      <button id="uploadButton">ENVIAR IMAGEM</button>
+      <p id="statusMessage"></p>
+
+      <div id="preview">
+        <h2>Pré-visualização:</h2>
+        <img id="previewImage" style="max-width: 300px; display: none" />
+        <h3 id="previewTitle" style="display: none"></h3>
+        <button id="deleteButton" style="display: none">Deletar Imagem</button>
+
+        <!-- Barra de progresso para o upload da imagem -->
+        <div id="progressWrapper" style="display: none; text-align: center">
+          <p>Carregando...</p>
+          <progress
+            id="progressBar"
+            value="0"
+            max="100"
+            style="width: 100%"
+          ></progress>
+          <span id="progressPercentage">0%</span>
+        </div>
+      </div>
+    </div>
+    <footer>
+      <p>Desenvolvido por Abel Silva Brandão</p>
+    </footer>
+
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/9.1.2/firebase-app.js"
+      import {
+        getFirestore,
+        doc,
+        setDoc,
+        getDoc,
+        deleteDoc,
+      } from "https://www.gstatic.com/firebasejs/9.1.2/firebase-firestore.js"
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyDHnxCru35-twaaFei7ftO5Ta6PuQ2bNfs",
+        authDomain: "agendamemeu.firebaseapp.com",
+        projectId: "agendamemeu",
+        storageBucket: "agendamemeu.firebasestorage.app",
+        messagingSenderId: "489621237870",
+        appId: "1:489621237870:web:cf5ad3a99b6099d729367f",
+        measurementId: "G-S34Z2V3S3C",
+      }
+
+      // Inicializar Firebase
+      const app = initializeApp(firebaseConfig)
+      const db = getFirestore(app)
+
+      const flyerInput = document.getElementById("flyerInput")
+      const titleInput = document.getElementById("titleInput")
+      const uploadButton = document.getElementById("uploadButton")
+      const statusMessage = document.getElementById("statusMessage")
+      const previewImage = document.getElementById("previewImage")
+      const previewTitle = document.getElementById("previewTitle")
+      const deleteButton = document.getElementById("deleteButton")
+      const progressWrapper = document.getElementById("progressWrapper")
+      const progressBar = document.getElementById("progressBar")
+      const progressPercentage = document.getElementById("progressPercentage")
+
+      // Definir o tamanho máximo permitido para o arquivo (2MB em bytes)
+      const MAX_FILE_SIZE = 2 * 1024 * 1024 // 2MB
+
+      // Função para exibir o alerta com SweetAlert
+      function showFileSizeError() {
+        Swal.fire({
+          icon: "error",
+          title: "Tamanho do Arquivo Excedido",
+          text: `O arquivo selecionado ultrapassa o limite de 2MB. Por favor, envie um arquivo menor.`,
+        })
+      }
+
+      // Função para armazenar a imagem (em Base64) e o título no Firestore
+      function storeImageInFirestore(base64String, title) {
+        const eventoRef = doc(db, "eventos", "evento_1") // Use o ID correto para o evento
+
+        setDoc(eventoRef, {
+          title: title,
+          flyerUrl: base64String, // Armazena o Base64 no Firestore
+        })
+          .then(() => {
+            console.log("Evento adicionado ao Firestore!")
+            statusMessage.textContent = "Imagem adicionada com sucesso!"
+            previewImage.src = "data:image/png;base64," + base64String // Atualiza a pré-visualização
+            previewTitle.textContent = title // Atualiza o título da pré-visualização
+            previewImage.style.display = "block" // Exibe a imagem
+            previewTitle.style.display = "block" // Exibe o título
+            deleteButton.style.display = "block" // Exibe o botão de deletar
+          })
+          .catch((error) => {
+            console.error("Erro ao adicionar evento:", error)
+            statusMessage.textContent =
+              "Erro ao adicionar evento: " + error.message
+          })
+      }
+
+      // Função para deletar a imagem do Firestore
+      deleteButton.addEventListener("click", () => {
+        const eventoRef = doc(db, "eventos", "evento_1") // Use o ID correto para o evento
+
+        deleteDoc(eventoRef)
+          .then(() => {
+            console.log("Evento deletado do Firestore!")
+            statusMessage.textContent = "Imagem deletada com sucesso!"
+            previewImage.style.display = "none" // Esconde a imagem
+            previewTitle.textContent = "" // Limpa o título
+            previewTitle.style.display = "none" // Esconde o título
+            deleteButton.style.display = "none" // Esconde o botão de deletar
+          })
+          .catch((error) => {
+            console.error("Erro ao deletar evento:", error)
+            statusMessage.textContent =
+              "Erro ao deletar evento: " + error.message
+          })
+      })
+
+      uploadButton.addEventListener("click", () => {
+        const file = flyerInput.files[0]
+        const title = titleInput.value
+
+        if (file && title) {
+          // Verifica o tamanho do arquivo
+          if (file.size > MAX_FILE_SIZE) {
+            showFileSizeError() // Exibe o erro se o tamanho for maior que o permitido
+            return // Interrompe a execução se o arquivo for grande demais
+          }
+
+          // Exibe a barra de progresso
+          progressWrapper.style.display = "block"
+          progressBar.value = 0
+          progressPercentage.textContent = "0%"
+
+          const reader = new FileReader()
+
+          // Quando o arquivo for carregado, converta-o para base64
+          reader.onloadend = function () {
+            const base64String = reader.result.split(",")[1] // Pegamos apenas a parte Base64
+            storeImageInFirestore(base64String, title) // Armazenamos no Firestore
+          }
+
+          reader.onprogress = function (event) {
+            if (event.lengthComputable) {
+              let percent = Math.round((event.loaded / event.total) * 100)
+              progressBar.value = percent
+              progressPercentage.textContent = percent + "%"
+            }
+          }
+
+          reader.readAsDataURL(file) // Converte o arquivo em Base64
+        } else {
+          alert("Por favor, selecione um arquivo e insira um título.")
+        }
+      })
+    </script>
+    <style>
+      #preview {
+        text-align: center;
+        margin-top: 20px;
+      }
+
+      #previewTitle {
+        max-width: 50%;
+        height: auto;
+        display: none;
+        text-align: center;
+      }
+      #previewImage {
+        max-width: 50%;
+        height: auto;
+        display: none;
+        text-align: center;
+      }
+      #deleteButton {
+        margin-top: 10px;
+        padding: 10px 20px;
+        background-color: var(--highlight-color);
+        color: var(--text-color);
+        border: none;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+      }
+      #deleteButton:hover {
+        background-color: var(--surface-color);
+      }
+      #uploadButton {
+        margin-top: 10px;
+        padding: 10px 20px;
+        background-color: var(--highlight-color);
+        color: var(--text-color);
+        border: none;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+      }
+
+      #uploadButton:hover {
+        background-color: var(--surface-color);
+      }
+
+      input[type="file"],
+      input[type="text"] {
+        width: 100%;
+        padding: 10px;
+        margin-top: 10px;
+        margin-bottom: 20px;
+        border: 1px solid var(--stroke-color);
+        border-radius: 8px;
+        background: var(--surface-color);
+        color: var(--text-color);
+        font-size: 16px;
+      }
+
+      input[type="file"] {
+        cursor: pointer;
+      }
+
+      h1 {
+        margin-top: 40px;
+        margin-bottom: 20px;
+        text-align: center;
+      }
+
+      progress {
+        margin-top: 10px;
+        width: 100%;
+      }
+    </style>
+  </body>
+</html>
